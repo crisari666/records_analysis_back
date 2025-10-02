@@ -37,7 +37,12 @@ export class AuthService {
       email: user.email 
     };
 
-    const accessToken = this.jwtService.sign(payload);
+    const jwtConfig = this.configService.get('jwt');
+    const accessToken = this.jwtService.sign(payload, {
+      privateKey: jwtConfig.privateKey,
+      algorithm: jwtConfig.algorithm,
+      expiresIn: jwtConfig.expiresIn,
+    });
     
     return {
       access_token: accessToken,

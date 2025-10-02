@@ -46,6 +46,8 @@ lerna-debug.log*
 .temp
 .tmp
 .env
+jwt-private.pem
+jwt-public.pem
 
 # Runtime data
 pids

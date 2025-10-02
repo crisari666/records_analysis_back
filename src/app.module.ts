@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -16,9 +16,15 @@ import bcryptConfig from './config/bcrypt.config';
       load: [databaseConfig, jwtConfig, bcryptConfig],
     }),
     MongooseModule.forRootAsync({
-      useFactory: () => ({
-        uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/fitness_quantum_users',
-      }),
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        const uri = configService.get<string>('database.uri')
+        console.log('uri', uri)
+        return ({
+          uri: configService.get<string>('database.uri'),
+        })
+    },
+      inject: [ConfigService],
     }),
     UsersModule,
     AuthModule,

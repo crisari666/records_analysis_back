@@ -4,15 +4,24 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  const databaseName = process.env.DATABASE_NAME;
+  const dataBasePass = process.env.DATABASE_PASS;
+  const dataBaseUser = process.env.DATABASE_USER;
+  const HOST = process.env.DATABASE_HOST;
+  const PORT = process.env.DATABASE_PORT;
+  const port = process.env.APP_PORT;
+
+  console.log({ databaseName, dataBasePass, dataBaseUser, HOST, PORT, port });  
   
-  app.setGlobalPrefix('rst');
+  app.setGlobalPrefix('rest');
   
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
+  // app.useGlobalPipes(new ValidationPipe({
+  //   whitelist: true,
+  //   forbidNonWhitelisted: true,
+  //   transform: true,
+  // }));
   
-  await app.listen(process.env.PORT || 3000);
+  await app.listen(port);
 }
 bootstrap();
