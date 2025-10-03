@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { RecordsModule } from './records/records.module';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 import bcryptConfig from './config/bcrypt.config';
@@ -28,6 +29,7 @@ import bcryptConfig from './config/bcrypt.config';
     }),
     UsersModule,
     AuthModule,
+    RecordsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
