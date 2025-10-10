@@ -9,13 +9,13 @@ export class CallerDevice {
   imei: string;
 
   @Prop({ required: true, trim: true })
-  name: string;
+  title: string;
+
+  @Prop({ required: true, trim: true })
+  brand: string;
 
   @Prop({ trim: true })
   model?: string;
-
-  @Prop({ trim: true })
-  manufacturer?: string;
 
   @Prop({ trim: true })
   phoneNumber?: string;

@@ -7,15 +7,15 @@ export class CreateCallerDeviceDto {
 
   @IsNotEmpty()
   @IsString()
-  name: string;
+  title: string;
+
+  @IsNotEmpty()
+  @IsString()
+  brand: string;
 
   @IsOptional()
   @IsString()
   model?: string;
-
-  @IsOptional()
-  @IsString()
-  manufacturer?: string;
 
   @IsOptional()
   @IsString()
