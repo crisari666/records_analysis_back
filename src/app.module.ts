@@ -6,15 +6,17 @@ import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { RecordsModule } from './records/records.module';
+import { TranscriptionAnalysisModule } from './transcriptions/transcription-analysis.module';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 import bcryptConfig from './config/bcrypt.config';
+import recordsConfig from './config/records.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, jwtConfig, bcryptConfig],
+      load: [databaseConfig, jwtConfig, bcryptConfig, recordsConfig],
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
@@ -30,6 +32,7 @@ import bcryptConfig from './config/bcrypt.config';
     UsersModule,
     AuthModule,
     RecordsModule,
+    TranscriptionAnalysisModule,
   ],
   controllers: [AppController],
   providers: [AppService],
