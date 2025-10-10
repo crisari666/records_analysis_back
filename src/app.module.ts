@@ -7,6 +7,8 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { RecordsModule } from './records/records.module';
 import { TranscriptionAnalysisModule } from './transcriptions/transcription-analysis.module';
+import { ProjectsModule } from './projects/projects.module';
+import { CallerDevicesModule } from './caller-devices/caller-devices.module';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 import bcryptConfig from './config/bcrypt.config';
@@ -33,6 +35,8 @@ import recordsConfig from './config/records.config';
     AuthModule,
     RecordsModule,
     TranscriptionAnalysisModule,
+    ProjectsModule,
+    CallerDevicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
