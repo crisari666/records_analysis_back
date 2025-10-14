@@ -1,10 +1,12 @@
 import { Controller, Get, Post, Param, Query, HttpException, HttpStatus } from '@nestjs/common';
 import { TranscriptionAnalysisService, AnalysisResult } from './transcription-analysis.service';
+import { OllamaService } from './ollama.service';
 
 @Controller('transcriptions')
 export class TranscriptionAnalysisController {
   constructor(
     private readonly transcriptionAnalysisService: TranscriptionAnalysisService,
+    private readonly ollamaService: OllamaService,
   ) {}
 
   @Post('analyze/:id')
@@ -158,5 +160,52 @@ export class TranscriptionAnalysisController {
       message: 'Transcription analysis service is running',
       timestamp: new Date().toISOString(),
     };
+  }
+
+  @Get('ollama/status')
+  async getOllamaStatus() {
+    try {
+      const isAvailable = await this.ollamaService.checkModelAvailability();
+      
+      return {
+        success: true,
+        data: {
+          available: isAvailable,
+          model: 'deepseek-llm',
+          host: process.env.OLLAMA_HOST || 'http://localhost:11434',
+        },
+        message: isAvailable 
+          ? 'Ollama service is available and deepseek-llm model is ready'
+          : 'Ollama service is not available or deepseek-llm model is not installed',
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Error checking Ollama status',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('ollama/pull-model')
+  async pullOllamaModel() {
+    try {
+      await this.ollamaService.pullModel();
+      
+      return {
+        success: true,
+        message: 'deepseek-llm model pulled successfully',
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Error pulling deepseek-llm model',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 }

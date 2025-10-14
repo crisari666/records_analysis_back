@@ -48,47 +48,58 @@ export class RecordsService {
   }
 
   /**
-   * Process and transcribe the latest audio files
+   * Process and transcribe records that haven't been transcribed yet
+   * Queries database for records where transcribed = false OR transcription is null/empty
    */
   async processLatestRecordings(limit: number = 10): Promise<RecordsEntity[]> {
-    this.logger.log(`Processing latest ${limit} recordings for transcription`);
+    this.logger.log(`Processing latest ${limit} untranscribed recordings from database`);
     
-    const transcriptionResults = await this.transcriptionService.processLatestRecordings(limit);
-    const savedRecords: RecordsEntity[] = [];
+    // Query for records that need transcription
+    const untranscribedRecords = await this.recordsModel
+      .find({
+        $or: [
+          { transcribed: false },
+          { transcription: { $in: [null, ''] } }
+        ]
+      })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .exec();
 
-    for (const result of transcriptionResults) {
+    this.logger.log(`Found ${untranscribedRecords.length} records to transcribe`);
+
+    const processedRecords: RecordsEntity[] = [];
+
+    for (const record of untranscribedRecords) {
       try {
-        const { filePath, parsedInfo, transcription } = result;
-        
-        // Check if record already exists
-        const existingRecord = await this.recordsModel.findOne({ file: filePath }).exec();
-        
-        if (existingRecord) {
-          // Update existing record with transcription
-          existingRecord.transcription = transcription;
-          const updatedRecord = await existingRecord.save();
-          savedRecords.push(updatedRecord);
-          this.logger.log(`Updated existing record: ${filePath}`);
-        } else {
-          // Create new record
-          const newRecord = new this.recordsModel({
-            user: parsedInfo.userId,
-            file: filePath,
-            callerId: parsedInfo.contactPhone || 'unknown',
-            type: parsedInfo.type,
-            transcription: transcription
-          });
-          
-          const savedRecord = await newRecord.save();
-          savedRecords.push(savedRecord);
-          this.logger.log(`Created new record: ${filePath}`);
+        // Check if file exists
+        if (!fs.existsSync(record.file)) {
+          this.logger.warn(`File not found: ${record.file}. Skipping record.`);
+          continue;
         }
+
+        // Transcribe the audio file
+        const transcription = await this.transcriptionService.transcribeAudio(record.file);
+        
+        // Update the record with transcription
+        record.transcription = transcription;
+        record.transcribed = true;
+        
+        const updatedRecord = await record.save();
+        processedRecords.push(updatedRecord);
+        
+        this.logger.log(`Successfully transcribed record: ${record.file}`);
       } catch (error) {
-        this.logger.error(`Error saving record for ${result.filePath}:`, error);
+        this.logger.error(`Error transcribing record ${record.file}:`, error);
+        
+        // Mark as failed transcription but still save the record
+        record.transcribed = false;
+        await record.save();
       }
     }
 
-    return savedRecords;
+    this.logger.log(`Successfully processed ${processedRecords.length} records`);
+    return processedRecords;
   }
 
   /**

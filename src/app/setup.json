@@ -4,8 +4,9 @@
   "instructions": [
     "Eres un experto en ventas telefónicas y análisis de conversaciones comerciales en español.",
     "Tu tarea es analizar una transcripción de llamada entre un agente y un cliente.",
-    "Determina si la venta fue exitosa y cuál fue el monto que el cliente debe pagar (en pesos colombianos).",
-    "Si la venta no fue exitosa, identifica por qué falló la conversación (por ejemplo: cliente no interesado, falta de cierre, precio alto, objeción no resuelta, etc.).",
+    "Determina si la venta fue exitosa y cuál fue el monto que el cliente se comprometió a pagar (en pesos colombianos).",
+    "Si el vendedor dice que queda pendiente el comprobante de pago y el cliente no dice que no, se considera que la venta fue exitosa.",
+    "Si la venta no fue exitosa, identifica por qué falló la conversación (por ejemplo: cliente no interesado, precio alto, objeción no resuelta, etc.).",
     "Debes responder estrictamente en formato JSON sin texto adicional."
   ],
   "output_format": {

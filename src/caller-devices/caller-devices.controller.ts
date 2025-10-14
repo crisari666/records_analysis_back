@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { CallerDevicesService } from './caller-devices.service';
-import { CreateCallerDeviceDto } from '../dto/create-caller-device.dto';
-import { UpdateCallerDeviceDto } from '../dto/update-caller-device.dto';
+import { CreateCallerDeviceDto } from 'src/dto/create-caller-device.dto';
+import { UpdateCallerDeviceDto } from 'src/dto/update-caller-device.dto';
 
 @Controller('caller-devices')
 export class CallerDevicesController {

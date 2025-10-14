@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { TranscriptionAnalysisController } from './transcription-analysis.controller';
 import { TranscriptionAnalysisService } from './transcription-analysis.service';
+import { OllamaService } from './ollama.service';
 import { RecordsEntity, RecordsSchema } from '../schemas/records.schema';
 
 @Module({
@@ -11,7 +12,7 @@ import { RecordsEntity, RecordsSchema } from '../schemas/records.schema';
     ]),
   ],
   controllers: [TranscriptionAnalysisController],
-  providers: [TranscriptionAnalysisService],
-  exports: [TranscriptionAnalysisService],
+  providers: [TranscriptionAnalysisService, OllamaService],
+  exports: [TranscriptionAnalysisService, OllamaService],
 })
 export class TranscriptionAnalysisModule {}

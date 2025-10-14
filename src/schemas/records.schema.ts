@@ -14,8 +14,11 @@ export class RecordsEntity {
   @Prop({ required: true, trim: true })
   callerId: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ trim: true, default: null })
   transcription: string;
+
+  @Prop({ default: false })
+  transcribed: boolean;
 
   @Prop({ required: true, trim: true })
   type: string;
