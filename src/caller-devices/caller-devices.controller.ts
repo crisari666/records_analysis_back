@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/commo
 import { CallerDevicesService } from './caller-devices.service';
 import { CreateCallerDeviceDto } from 'src/dto/create-caller-device.dto';
 import { UpdateCallerDeviceDto } from 'src/dto/update-caller-device.dto';
+import { UpdateCallerDeviceProjectDto } from 'src/dto/update-caller-device-project.dto';
 
 @Controller('caller-devices')
 export class CallerDevicesController {
@@ -30,6 +31,11 @@ export class CallerDevicesController {
   @Patch(':id')
   updateCallerDevice(@Param('id') id: string, @Body() updateCallerDeviceDto: UpdateCallerDeviceDto) {
     return this.callerDevicesService.updateCallerDevice(id, updateCallerDeviceDto);
+  }
+
+  @Patch(':id/project')
+  updateCallerDeviceProject(@Param('id') id: string, @Body() updateCallerDeviceProjectDto: UpdateCallerDeviceProjectDto) {
+    return this.callerDevicesService.updateCallerDeviceProject(id, updateCallerDeviceProjectDto);
   }
 
   @Delete(':id')

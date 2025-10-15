@@ -3,12 +3,16 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ProjectsService } from './projects.service';
 import { ProjectsController } from './projects.controller';
 import { Project, ProjectSchema } from '../schemas/project.schema';
+import { CallerDevice, CallerDeviceSchema } from '../schemas/caller-device.schema';
 import { JwtMiddleware } from '../auth/jwt.middleware';
 import { JwtService } from '@nestjs/jwt';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Project.name, schema: ProjectSchema }]),
+    MongooseModule.forFeature([
+      { name: Project.name, schema: ProjectSchema },
+      { name: CallerDevice.name, schema: CallerDeviceSchema }
+    ]),
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService, JwtService],
