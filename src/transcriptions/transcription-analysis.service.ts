@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { RecordsEntity, RecordsDocument } from '../schemas/records.schema';
-import * as fs from 'fs';
-import * as path from 'path';
+import { Project, ProjectDocument } from '../schemas/project.schema';
+import { CallerDevice, CallerDeviceDocument } from '../schemas/caller-device.schema';
 import { OllamaService } from './ollama.service';
 
 export interface AnalysisResult {
@@ -19,6 +19,10 @@ export class TranscriptionAnalysisService {
   constructor(
     @InjectModel(RecordsEntity.name)
     private readonly recordsModel: Model<RecordsDocument>,
+    @InjectModel(Project.name)
+    private readonly projectModel: Model<ProjectDocument>,
+    @InjectModel(CallerDevice.name)
+    private readonly callerDeviceModel: Model<CallerDeviceDocument>,
     private readonly ollamaService: OllamaService,
   ) {}
 
@@ -34,9 +38,7 @@ export class TranscriptionAnalysisService {
         throw new Error(`Record with ID ${recordId} has no transcription`);
       }
 
-      const analysisResult = await this.performAnalysis(record.transcription);
-
-      console.log('analysisResult', analysisResult);
+      const analysisResult = await this.performAnalysis(record.transcription, record.callerId);
       
       // Update the record with analysis results
       await this.recordsModel.findByIdAndUpdate(recordId, {
@@ -72,7 +74,7 @@ export class TranscriptionAnalysisService {
 
       for (const record of records) {
         try {
-          const analysisResult = await this.performAnalysis(record.transcription);
+          const analysisResult = await this.performAnalysis(record.transcription, record.callerId);
           
           // Update the record with analysis results
           await this.recordsModel.findByIdAndUpdate(record._id, {
@@ -96,13 +98,30 @@ export class TranscriptionAnalysisService {
     }
   }
 
-  private async performAnalysis(transcription: string): Promise<AnalysisResult> {
+  private async performAnalysis(transcription: string, callerId: string): Promise<AnalysisResult> {
     try {
-      // Load the setup configuration
-      const setupPath = path.join(process.cwd(), 'src', 'app', 'setup.json');
-      const setupConfig = JSON.parse(fs.readFileSync(setupPath, 'utf8'));
+      // Get the caller device to find the project
+      const callerDevice = await this.callerDeviceModel.findOne({ title: callerId }).exec();
+      
+      if (!callerDevice) {
+        throw new Error(`Caller device with ID ${callerId} not found`);
+      }
 
-      console.log({transcription});
+      if (!callerDevice.project) {
+        throw new Error(`Caller device ${callerId} is not assigned to any project`);
+      }
+
+      // Get the project configuration
+      const project = await this.projectModel.findById(callerDevice.project).exec();
+      
+      if (!project) {
+        throw new Error(`Project with ID ${callerDevice.project} not found`);
+      }
+
+      // Use the project's config as setup configuration
+      const setupConfig = project.config || {};
+
+      // console.log({transcription, callerId, projectId: callerDevice.project});
       
 
       // Use Ollama for analysis

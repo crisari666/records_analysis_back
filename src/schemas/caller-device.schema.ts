@@ -8,7 +8,7 @@ export class CallerDevice {
   @Prop({ required: true, unique: true, trim: true })
   imei: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ required: true, trim: true, unique: true })
   title: string;
 
   @Prop({ required: true, trim: true })

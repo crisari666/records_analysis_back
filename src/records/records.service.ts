@@ -112,7 +112,7 @@ export class RecordsService {
     const parsedInfo = this.transcriptionService.parseFilename(filename);
     const transcription = await this.transcriptionService.transcribeAudio(filePath);
 
-    console.log('transcription', {transcription});
+    // console.log('transcription', {transcription});
     
     // Check if record already exists
     const existingRecord = await this.recordsModel.findOne({ file: filePath }).exec();

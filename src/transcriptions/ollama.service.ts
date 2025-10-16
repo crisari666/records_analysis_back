@@ -42,9 +42,9 @@ export class OllamaService {
         },
       });
 
-      console.log('response', systemPrompt);
-      console.log('transcription', transcription);
-      console.log('response', response);
+      // console.log('response', systemPrompt);
+      // console.log('transcription', transcription);
+      // console.log('response', response);
 
       const responseContent = response.message?.content;
       
@@ -57,13 +57,13 @@ export class OllamaService {
       // Parse the JSON response
       const analysisResult = JSON.parse(responseContent) as OllamaAnalysisResult;
 
-      console.log('analysisResult', analysisResult);
       return analysisResult;
     } catch (error) {
       this.logger.error('Error analyzing transcription with Ollama:', error);
       
+      const newLocal = this;
       // Fallback to basic analysis if Ollama fails
-      this.logger.warn('Falling back to basic analysis due to Ollama error');
+      newLocal.logger.warn('Falling back to basic analysis due to Ollama error');
       return this.performBasicAnalysis(transcription);
     }
   }
