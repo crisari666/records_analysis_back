@@ -182,7 +182,8 @@ export class RecordsService {
         file: filePath,
         callerId: parsedInfo.contactPhone || 'unknown',
         type: parsedInfo.type,
-        transcription: transcription
+        transcription: transcription,
+        transcribed: true,
       });
       
       return newRecord.save();

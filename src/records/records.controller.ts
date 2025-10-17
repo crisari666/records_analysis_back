@@ -36,6 +36,8 @@ export class RecordsController {
   @Get('transcribe-mapped')
   async transcribeMapped(@Query('limit') limit?: string) {
     const limitNumber = limit ? parseInt(limit, 10) : 10;
+    console.log('Demonios');
+    
     return this.recordsService.transcribeMappedFiles(limitNumber);
   }
 
