@@ -15,11 +15,11 @@ export class RecordsCronService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   async handleMapLatestFiles() {
     this.logger.log('Starting scheduled mapLatestFiles job...');
-    
     try {
       const result = await this.recordsService.mapLatestFiles(50);
       this.logger.log(`Scheduled mapLatestFiles completed successfully. Processed ${result.length} files.`);
     } catch (error) {
+      
       this.logger.error('Error in scheduled mapLatestFiles job:', error);
     }
   }
