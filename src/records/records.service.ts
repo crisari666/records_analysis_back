@@ -200,7 +200,7 @@ export class RecordsService {
   /**
    * Get files from the records directory
    */
-  private async getFilesFromRecordsDirectory(): Promise<string[]> {
+  async getFilesFromRecordsDirectory(): Promise<string[]> {
     const recordsPath = this.configService.get<string>('records.recordPath');
     
     if (!recordsPath) {
@@ -221,6 +221,64 @@ export class RecordsService {
       .map(file => path.join(recordsPath, file));
 
     return files;
+  }
+
+  /**
+   * Get all files from the records directory with detailed information
+   */
+  async getAllFilesInRecordsDirectory(): Promise<{
+    files: Array<{
+      name: string;
+      path: string;
+      size: number;
+      modified: Date;
+      extension: string;
+    }>;
+    directory: string;
+    totalFiles: number;
+  }> {
+    const recordsPath = this.configService.get<string>('records.recordPath');
+
+    console.log({recordsPath});
+    
+    
+    
+    if (!recordsPath) {
+      throw new Error('RECORDS_PATH environment variable not set');
+    }
+
+    if (!fs.existsSync(recordsPath)) {
+      this.logger.warn(`Records directory does not exist: ${recordsPath}`);
+      return {
+        files: [],
+        directory: recordsPath,
+        totalFiles: 0
+      };
+    }
+
+    const files = fs.readdirSync(recordsPath)
+      .filter(file => {
+        const filePath = path.join(recordsPath, file);
+        return fs.statSync(filePath).isFile();
+      })
+      .map(file => {
+        const filePath = path.join(recordsPath, file);
+        const stats = fs.statSync(filePath);
+        return {
+          name: file,
+          path: filePath,
+          size: stats.size,
+          modified: stats.mtime,
+          extension: path.extname(file)
+        };
+      })
+      .sort((a, b) => b.modified.getTime() - a.modified.getTime()); // Sort by modification time, newest first
+
+    return {
+      files,
+      directory: recordsPath,
+      totalFiles: files.length
+    };
   }
 
   /**

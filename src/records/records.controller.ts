@@ -22,6 +22,11 @@ export class RecordsController {
     return this.recordsService.getLatestRecord();
   }
 
+  @Get('files')
+  getAllFiles() {
+    return this.recordsService.getAllFilesInRecordsDirectory();
+  }
+
   @Get('transcribe-latest')
   async transcribeLatest(@Query('limit') limit?: string) {
     const limitNumber = limit ? parseInt(limit, 10) : 10;
