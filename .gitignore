@@ -60,3 +60,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 uploads/*
 jwt-private.pem
 jwt-public.pem
+yarn.lock
