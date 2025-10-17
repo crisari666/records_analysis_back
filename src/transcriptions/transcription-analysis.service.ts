@@ -38,8 +38,7 @@ export class TranscriptionAnalysisService {
         throw new Error(`Record with ID ${recordId} has no transcription`);
       }
 
-      const analysisResult = await this.performAnalysis(record.transcription, record.callerId);
-      
+      const analysisResult = await this.performAnalysis(record.transcription, record.callerId);      
       // Update the record with analysis results
       await this.recordsModel.findByIdAndUpdate(recordId, {
         successSell: analysisResult.successSell,
@@ -125,8 +124,7 @@ export class TranscriptionAnalysisService {
       
 
       // Use Ollama for analysis
-      const analysisResult = await this.ollamaService.analyzeTranscription(transcription, setupConfig);
-      
+      const analysisResult = await this.ollamaService.analyzeTranscription(transcription, setupConfig);      
       return analysisResult;
     } catch (error) {
       this.logger.error('Error performing analysis:', error);

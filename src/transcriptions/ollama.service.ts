@@ -55,7 +55,7 @@ export class OllamaService {
       this.logger.log('Received response from Ollama, parsing JSON');
       
       // Parse the JSON response
-      const analysisResult = JSON.parse(responseContent) as OllamaAnalysisResult;
+      const analysisResult = JSON.parse(responseContent).example as OllamaAnalysisResult;
 
       return analysisResult;
     } catch (error) {
