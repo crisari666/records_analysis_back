@@ -103,6 +103,62 @@ export class RecordsService {
   }
 
   /**
+   * Transcribe latest mapped files where transcribed field is false, null, or doesn't exist
+   * This method specifically targets records that have been mapped but not yet transcribed
+   */
+  async transcribeMappedFiles(limit: number = 10): Promise<RecordsEntity[]> {
+    this.logger.log(`Transcribing latest ${limit} mapped files (transcribed: false/null/not exists)`);
+    
+    // Query for records where transcribed is false, null, or doesn't exist
+    const mappedRecords = await this.recordsModel
+      .find({
+        $or: [
+          { transcribed: false },
+          { transcribed: null },
+          { transcribed: { $exists: false } }
+        ]
+      })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .exec();
+
+    this.logger.log(`Found ${mappedRecords.length} mapped records to transcribe`);
+
+    const processedRecords: RecordsEntity[] = [];
+
+    for (const record of mappedRecords) {
+      try {
+        // Check if file exists
+        if (!fs.existsSync(record.file)) {
+          this.logger.warn(`File not found: ${record.file}. Skipping record.`);
+          continue;
+        }
+
+        // Transcribe the audio file
+        const transcription = await this.transcriptionService.transcribeAudio(record.file);
+        
+        // Update the record with transcription
+        record.transcription = transcription;
+        record.transcribed = true;
+        
+        const updatedRecord = await record.save();
+        processedRecords.push(updatedRecord);
+        
+        this.logger.log(`Successfully transcribed mapped record: ${record.file}`);
+      } catch (error) {
+        this.logger.error(`Error transcribing mapped record ${record.file}:`, error);
+        
+        // Mark as failed transcription but still save the record
+        record.transcribed = false;
+        await record.save();
+      }
+    }
+
+    this.logger.log(`Successfully processed ${processedRecords.length} mapped records`);
+    return processedRecords;
+  }
+
+  /**
    * Transcribe a specific audio file
    */
   async transcribeFile(filePath: string): Promise<RecordsEntity> {

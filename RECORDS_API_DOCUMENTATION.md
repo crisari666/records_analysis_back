@@ -162,7 +162,49 @@ null
 
 ---
 
-## 5. **POST** `/records/transcribe-file`
+## 5. **GET** `/records/transcribe-mapped?limit=10`
+**Method**: `GET`  
+**Description**: Transcribe latest mapped files where transcribed field is false, null, or doesn't exist
+
+### Query Parameters:
+- `limit` (optional): Number of files to process (default: 10)
+
+### Payload: None
+
+### Success Response (200):
+```json
+[
+  {
+    "_id": "507f1f77bcf86cd799439011",
+    "user": "user123",
+    "file": "/mapped/path/to/audio.wav",
+    "callerId": "1234567890",
+    "type": "incoming",
+    "transcription": "Transcribed audio content here",
+    "transcribed": true,
+    "successSell": null,
+    "amountToPay": null,
+    "reasonFail": null,
+    "timestamp": 1701432000000,
+    "targetName": "John Doe",
+    "targetNumber": "9876543210",
+    "createdAt": "2023-12-01T10:00:00.000Z",
+    "updatedAt": "2023-12-01T10:00:00.000Z"
+  }
+]
+```
+
+### Error Response (500):
+```json
+{
+  "statusCode": 500,
+  "message": "Error transcribing mapped files"
+}
+```
+
+---
+
+## 6. **POST** `/records/transcribe-file`
 **Method**: `POST`  
 **Description**: Transcribe a specific audio file
 
@@ -454,6 +496,11 @@ curl -X GET http://localhost:3000/records
 ### Transcribe latest files:
 ```bash
 curl -X GET "http://localhost:3000/records/transcribe-latest?limit=5"
+```
+
+### Transcribe mapped files:
+```bash
+curl -X GET "http://localhost:3000/records/transcribe-mapped?limit=5"
 ```
 
 ### Transcribe specific file:

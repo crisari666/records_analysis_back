@@ -33,6 +33,12 @@ export class RecordsController {
     return this.recordsService.processLatestRecordings(limitNumber);
   }
 
+  @Get('transcribe-mapped')
+  async transcribeMapped(@Query('limit') limit?: string) {
+    const limitNumber = limit ? parseInt(limit, 10) : 10;
+    return this.recordsService.transcribeMappedFiles(limitNumber);
+  }
+
   @Post('transcribe-file')
   async transcribeFile(@Body('filePath') filePath: string) {
     return this.recordsService.transcribeFile(filePath);
