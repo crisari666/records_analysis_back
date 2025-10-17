@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { RecordsService } from './records.service';
 import { RecordsController } from './records.controller';
 import { TranscriptionService } from './transcription.service';
+import { RecordsCronService } from './records-cron.service';
 import { RecordsEntity, RecordsSchema } from '../schemas/records.schema';
 
 @Module({
@@ -12,7 +13,7 @@ import { RecordsEntity, RecordsSchema } from '../schemas/records.schema';
     ConfigModule,
   ],
   controllers: [RecordsController],
-  providers: [RecordsService, TranscriptionService],
-  exports: [RecordsService, TranscriptionService],
+  providers: [RecordsService, TranscriptionService, RecordsCronService],
+  exports: [RecordsService, TranscriptionService, RecordsCronService],
 })
 export class RecordsModule {}
