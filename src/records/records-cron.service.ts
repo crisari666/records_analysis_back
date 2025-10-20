@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { RecordsService } from './records.service';
+import { TranscriptionAnalysisService } from '../transcriptions/transcription-analysis.service';
 
 @Injectable()
 export class RecordsCronService {
   private readonly logger = new Logger(RecordsCronService.name);
 
-  constructor(private readonly recordsService: RecordsService) {}
+  constructor(
+    private readonly recordsService: RecordsService,
+    private readonly transcriptionAnalysisService: TranscriptionAnalysisService,
+  ) {}
 
   /**
    * Cron job that runs every 5 minutes to map latest files
@@ -69,6 +73,38 @@ export class RecordsCronService {
       return result;
     } catch (error) {
       this.logger.error('Error in manual transcribeMappedFiles trigger:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cron job that runs every 10 minutes to analyze first records without analysis
+   * This will automatically analyze transcriptions that haven't been analyzed yet
+   */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async handleAnalyzeFirstRecordsWithoutAnalysis() {
+    this.logger.log('Starting scheduled analyzeFirstRecordsWithoutAnalysis job...');
+    try {
+      const result = await this.transcriptionAnalysisService.analyzeFirstRecordsWithoutAnalysis(10);
+      this.logger.log(`Scheduled analyzeFirstRecordsWithoutAnalysis completed successfully. Processed ${result.length} records.`);
+    } catch (error) {
+      this.logger.error('Error in scheduled analyzeFirstRecordsWithoutAnalysis job:', error);
+    }
+  }
+
+  /**
+   * Manual trigger for transcription analysis testing purposes
+   * Can be called via API endpoint if needed
+   */
+  async triggerAnalyzeFirstRecordsWithoutAnalysis(limit: number = 10) {
+    this.logger.log(`Manually triggering analyzeFirstRecordsWithoutAnalysis with limit: ${limit}`);
+    
+    try {
+      const result = await this.transcriptionAnalysisService.analyzeFirstRecordsWithoutAnalysis(limit);
+      this.logger.log(`Manual analyzeFirstRecordsWithoutAnalysis completed successfully. Processed ${result.length} records.`);
+      return result;
+    } catch (error) {
+      this.logger.error('Error in manual analyzeFirstRecordsWithoutAnalysis trigger:', error);
       throw error;
     }
   }
