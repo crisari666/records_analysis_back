@@ -191,6 +191,47 @@ export class RecordsService {
   }
 
   /**
+   * Transcribe a specific record by its ID
+   */
+  async transcribeRecordById(id: string): Promise<RecordsEntity> {
+    this.logger.log(`Transcribing record by ID: ${id}`);
+    
+    // Find the record by ID
+    const record = await this.recordsModel.findById(id).exec();
+    
+    if (!record) {
+      throw new Error(`Record with ID ${id} not found`);
+    }
+
+    // Check if file exists
+    if (!fs.existsSync(record.file)) {
+      throw new Error(`Audio file not found: ${record.file}`);
+    }
+
+    try {
+      // Transcribe the audio file
+      const transcription = await this.transcriptionService.transcribeAudio(record.file);
+      
+      // Update the record with transcription
+      record.transcription = transcription;
+      record.transcribed = true;
+      
+      const updatedRecord = await record.save();
+      
+      this.logger.log(`Successfully transcribed record ${id}: ${record.file}`);
+      return updatedRecord;
+    } catch (error) {
+      this.logger.error(`Error transcribing record ${id}:`, error);
+      
+      // Mark as failed transcription but still save the record
+      record.transcribed = false;
+      await record.save();
+      
+      throw error;
+    }
+  }
+
+  /**
    * Parse filename structure: timestamp_callerId_type_targetName_targetNumber
    */
   private parseFilenameStructure(filename: string): {
@@ -373,16 +414,11 @@ export class RecordsService {
       try {
         const filename = path.basename(filePath);
         const parsedStructure = this.parseFilenameStructure(filename);
-
+        console.log({parsedStructure});
+        
         // Skip files with invalid structure
         if (!parsedStructure.timestamp || !parsedStructure.callerId) {
           this.logger.warn(`Skipping file with invalid structure: ${filename}`);
-          continue;
-        }
-
-        // Skip files with timestamp less than or equal to last mapped
-        if (parsedStructure.timestamp <= lastTimestamp) {
-          this.logger.log(`Skipping file ${filename} - timestamp ${parsedStructure.timestamp} <= last mapped ${lastTimestamp}`);
           continue;
         }
 

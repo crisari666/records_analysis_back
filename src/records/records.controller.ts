@@ -46,6 +46,11 @@ export class RecordsController {
     return this.recordsService.transcribeFile(filePath);
   }
 
+  @Post(':id/transcribe')
+  async transcribeRecordById(@Param('id') id: string) {
+    return this.recordsService.transcribeRecordById(id);
+  }
+
   @Post('map-latest-files')
   async mapLatestFiles(@Query('limit') limit?: string) {
     const limitNumber = limit ? parseInt(limit, 10) : 50;

@@ -97,6 +97,50 @@ export class TranscriptionAnalysisService {
     }
   }
 
+  async analyzeLastRecordsWithoutAnalysis(limit: number = 10): Promise<AnalysisResult[]> {
+    try {
+      const records = await this.recordsModel
+        .find({
+          transcription: { $exists: true, $ne: null, $nin: [''] },
+          successSell: null,
+        })
+        .sort({ createdAt: -1 }) // Sort by creation date descending (newest first)
+        .limit(limit)
+        .exec();
+
+      if (records.length === 0) {
+        this.logger.log('No records found without analysis results');
+        return [];
+      }
+
+      const analysisResults: AnalysisResult[] = [];
+
+      for (const record of records) {
+        try {
+          const analysisResult = await this.performAnalysis(record.transcription, record.callerId);
+          
+          // Update the record with analysis results
+          await this.recordsModel.findByIdAndUpdate(record._id, {
+            successSell: analysisResult.successSell,
+            amountToPay: analysisResult.amountToPay,
+            reasonFail: analysisResult.reasonFail,
+          }).exec();
+
+          analysisResults.push(analysisResult);
+          this.logger.log(`Analysis completed for record ${record._id}`);
+        } catch (error) {
+          this.logger.error(`Error analyzing record ${record._id}:`, error);
+          // Continue with other records even if one fails
+        }
+      }
+
+      return analysisResults;
+    } catch (error) {
+      this.logger.error('Error analyzing last records without analysis:', error);
+      throw error;
+    }
+  }
+
   private async performAnalysis(transcription: string, callerId: string): Promise<AnalysisResult> {
     try {
       // Get the caller device to find the project

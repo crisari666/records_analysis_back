@@ -52,6 +52,29 @@ export class TranscriptionAnalysisController {
     }
   }
 
+  @Post('analyze-last')
+  async analyzeLastTranscriptions(@Query('limit') limit?: string) {
+    try {
+      const limitNumber = limit ? parseInt(limit, 10) : 10;
+      const results = await this.transcriptionAnalysisService.analyzeLastRecordsWithoutAnalysis(limitNumber);
+      
+      return {
+        success: true,
+        data: results,
+        message: `Analysis completed for ${results.length} last added transcriptions`,
+        count: results.length,
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Error analyzing last added transcriptions',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Get('pending')
   async getPendingAnalysis(@Query('limit') limit?: string) {
     try {
