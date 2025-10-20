@@ -16,7 +16,7 @@ export class RecordsCronService {
    * Cron job that runs every 5 minutes to map latest files
    * This will automatically process new files and move them to the mapped directory
    */
-  @Cron(CronExpression.EVERY_10_SECONDS)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async handleMapLatestFiles() {
     this.logger.log('Starting scheduled mapLatestFiles job...');
     try {
