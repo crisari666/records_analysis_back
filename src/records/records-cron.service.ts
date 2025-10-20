@@ -25,6 +25,21 @@ export class RecordsCronService {
   }
 
   /**
+   * Cron job that runs every 10 minutes to transcribe mapped files
+   * This will automatically transcribe files that have been mapped but not yet transcribed
+   */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async handleTranscribeMappedFiles() {
+    this.logger.log('Starting scheduled transcribeMappedFiles job...');
+    try {
+      const result = await this.recordsService.transcribeMappedFiles(20);
+      this.logger.log(`Scheduled transcribeMappedFiles completed successfully. Processed ${result.length} files.`);
+    } catch (error) {
+      this.logger.error('Error in scheduled transcribeMappedFiles job:', error);
+    }
+  }
+
+  /**
    * Manual trigger for testing purposes
    * Can be called via API endpoint if needed
    */
@@ -37,6 +52,23 @@ export class RecordsCronService {
       return result;
     } catch (error) {
       this.logger.error('Error in manual mapLatestFiles trigger:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Manual trigger for transcription testing purposes
+   * Can be called via API endpoint if needed
+   */
+  async triggerTranscribeMappedFiles(limit: number = 20) {
+    this.logger.log(`Manually triggering transcribeMappedFiles with limit: ${limit}`);
+    
+    try {
+      const result = await this.recordsService.transcribeMappedFiles(limit);
+      this.logger.log(`Manual transcribeMappedFiles completed successfully. Processed ${result.length} files.`);
+      return result;
+    } catch (error) {
+      this.logger.error('Error in manual transcribeMappedFiles trigger:', error);
       throw error;
     }
   }
