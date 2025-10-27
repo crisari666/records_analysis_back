@@ -61,3 +61,5 @@ uploads/*
 jwt-private.pem
 jwt-public.pem
 yarn.lock
+.wwebjs_auth/*
+RemoteAuth.zip

@@ -10,6 +10,7 @@ import { RecordsModule } from './records/records.module';
 import { TranscriptionAnalysisModule } from './transcriptions/transcription-analysis.module';
 import { ProjectsModule } from './projects/projects.module';
 import { CallerDevicesModule } from './caller-devices/caller-devices.module';
+import { WhatsappWebModule } from './whatsapp-web/whatsapp-web.module';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 import bcryptConfig from './config/bcrypt.config';
@@ -25,10 +26,21 @@ import recordsConfig from './config/records.config';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        const uri = configService.get<string>('database.uri')
-        console.log('uri', uri)
         return ({
           uri: configService.get<string>('database.uri'),
+        })
+    },
+      inject: [ConfigService],
+    }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      connectionName: 'conn2',
+      useFactory: (configService: ConfigService) => {
+        const uri2 = configService.get<string>('database.uri_ws')
+        console.log({uri2});
+        
+        return ({
+          uri: configService.get<string>('database.uri_ws'),
         })
     },
       inject: [ConfigService],
@@ -39,6 +51,7 @@ import recordsConfig from './config/records.config';
     TranscriptionAnalysisModule,
     ProjectsModule,
     CallerDevicesModule,
+    WhatsappWebModule,
   ],
   controllers: [AppController],
   providers: [AppService],
