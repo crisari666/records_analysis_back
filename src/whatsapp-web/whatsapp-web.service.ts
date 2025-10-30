@@ -1,45 +1,36 @@
 // src/whatsapp-web/whatsapp-web.service.ts
 import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Client, RemoteAuth, LocalAuth } from 'whatsapp-web.js';
-import { MongoStore } from 'wwebjs-mongo';
+import { Client, LocalAuth } from 'whatsapp-web.js';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import * as mongoose from 'mongoose';
 import * as qrcode from 'qrcode-terminal';
 import { log } from 'console';
 import { WhatsAppSession, WhatsAppSessionDocument } from 'src/schemas/whatsapp-session.schema';
+import { WhatsAppMessage, WhatsAppMessageDocument } from 'src/schemas/whatsapp-message.schema';
+import { WhatsappStorageService } from './whatsapp-storage.service';
+import * as path from 'path';
 
 interface SessionConfig {
   sessionId: string;
-  useRemoteAuth?: boolean;
   puppeteerOptions?: any;
 }
 
 @Injectable()
 export class WhatsappWebService implements OnModuleInit {
   private readonly logger = new Logger(WhatsappWebService.name);
-  private readonly collectionName = 'whatsappsessions';
+  private readonly sessionPath = path.join(process.cwd(), '.wwebjs_auth');
   private sessions: Map<string, { client: Client; isReady: boolean; lastRestore?: Date }> = new Map();
-  private mongooseInstance: any;
-  private store: any;
   private isInitializing = false;
 
   constructor(
     @InjectConnection('conn2') private readonly connection: Connection,
     @InjectModel(WhatsAppSession.name, 'conn2') private whatsAppSessionModel: mongoose.Model<WhatsAppSessionDocument>,
+    @InjectModel(WhatsAppMessage.name, 'conn2') private whatsAppMessageModel: mongoose.Model<WhatsAppMessageDocument>,
     private readonly configService: ConfigService,
-  ) {
-    this.mongooseInstance = {
-      connection: this.connection,
-      mongo: mongoose.mongo,
-    };
-
-    this.store = new MongoStore({ 
-      mongoose: this.mongooseInstance,
-      collectionName: this.collectionName,
-    });
-  }
+    private readonly storageService: WhatsappStorageService,
+  ) {}
 
   async onModuleInit() {
     this.logger.log('🚀 Initializing WhatsApp Web Service...');
@@ -47,7 +38,8 @@ export class WhatsappWebService implements OnModuleInit {
   }
 
   /**
-   * Initialize all stored sessions from MongoDB
+   * Initialize stored sessions from local storage
+   * Queries database for sessions with 'ready' or 'authenticated' status
    */
   private async initializeStoredSessions() {
     if (this.isInitializing) {
@@ -61,17 +53,20 @@ export class WhatsappWebService implements OnModuleInit {
       // Wait for MongoDB connection to be ready
       await this.connection.readyState;
       
-      const documents = await this.whatsAppSessionModel.find({});
+      // Query for sessions with ready or authenticated status
+      const documents = await this.whatsAppSessionModel.find({
+        status: { $in: ['ready', 'authenticated'] }
+      }).exec();
       
-      this.logger.log(`📱 Found ${documents.length} stored sessions in MongoDB`);
+      this.logger.log(`📱 Found ${documents.length} ready/authenticated sessions in database`);
       
       if (documents.length === 0) {
-        this.logger.log('No stored sessions to restore');
+        this.logger.log('No ready/authenticated sessions to restore');
         return;
       }
 
       // Extract unique session IDs from the documents
-      const sessionIds = [...new Set(documents.map(doc => doc.id))];
+      const sessionIds = [...new Set(documents.map(doc => doc.sessionId))];
       
       for (const sessionId of sessionIds) {
         // Check if session is already active
@@ -103,10 +98,10 @@ export class WhatsappWebService implements OnModuleInit {
   private async storeSessionMetadata(sessionId: string, metadata: { status: string; lastSeen: Date }) {
     try {
       await this.whatsAppSessionModel.updateOne(
-        { id: sessionId },
+        { sessionId: sessionId },
         { 
           $set: {
-            id: sessionId,
+            sessionId: sessionId,
             ...metadata,
           }
         },
@@ -116,12 +111,137 @@ export class WhatsappWebService implements OnModuleInit {
       this.logger.error(`Error storing session metadata for ${sessionId}:`, error);
     }
   }
+
+
+  /**
+   * Setup event listeners for WhatsApp client
+   */
+  private setupClientListeners(client: Client, sessionId: string) {
+    client.on('qr', async (qr) => {
+      this.logger.log(`📱 QR received for session ${sessionId}`);
+      qrcode.generate(qr, { small: true, width: 100, height: 100 });
+      
+      await this.storeSessionMetadata(sessionId, { 
+        status: 'qr_generated', 
+        lastSeen: new Date() 
+      });
+      
+      this.emitQrEvent(sessionId, qr);
+    });
+
+    client.on('ready', async () => {
+      this.logger.log(`✅ Session ${sessionId} is ready!`);
+      const session = this.sessions.get(sessionId);
+      if (session) {
+        session.isReady = true;
+      }
+      await this.storeSessionMetadata(sessionId, { 
+        status: 'ready', 
+        lastSeen: new Date() 
+      });
+      
+      this.emitReadyEvent(sessionId);
+    });
+
+    client.on('authenticated', async () => {
+      this.logger.log(`🔐 Session ${sessionId} authenticated`);
+      await this.storeSessionMetadata(sessionId, { 
+        status: 'authenticated', 
+        lastSeen: new Date() 
+      });
+    });
+
+    client.on('auth_failure', async (error) => {
+      this.logger.error(`❌ Session ${sessionId} authentication failed:`, error);
+      await this.storeSessionMetadata(sessionId, { 
+        status: 'auth_failure', 
+        lastSeen: new Date() 
+      });
+      this.emitAuthFailureEvent(sessionId, error);
+    });
+    
+    client.on('message_create', async (message) => {
+      try {
+        this.logger.log(`📤 Message received in session ${sessionId}: ${message.body?.substring(0, 50) || 'media message'}`);
+        await this.storageService.saveMessage(sessionId, message);
+      } catch (error) {
+        this.logger.error(`Error handling message_create: ${error.message}`);
+      }
+    });
+
+
+    client.on('disconnected', async (reason) => {
+      this.logger.warn(`⚠️ Session ${sessionId} disconnected: ${reason}`);
+      const session = this.sessions.get(sessionId);
+      if (session) {
+        session.isReady = false;
+      }
+      
+      await this.storeSessionMetadata(sessionId, { 
+        status: 'disconnected', 
+        lastSeen: new Date() 
+      });
+      
+      // Auto-reconnect after 5 seconds
+      setTimeout(async () => {
+        this.logger.log(`🔄 Attempting to reconnect session ${sessionId}`);
+        this.sessions.delete(sessionId);
+        await this.createSession(sessionId);
+      }, 5000);
+    });
+
+    client.on('message_revoke_me', async (message) => {
+      try {
+        this.logger.log(`🗑️ Message revoked (me) in session ${sessionId}: ${message.body?.substring(0, 50) || 'media message'}`);
+        await this.storageService.markMessageAsDeleted(sessionId, message.id._serialized, 'me');
+      } catch (error) {
+        this.logger.error(`Error handling message_revoke_me: ${error.message}`);
+      }
+    });
+
+    client.on('message_revoke_everyone', async (message, revokedMsg) => {
+      try {
+        this.logger.log(`🗑️ Message revoked (everyone) in session ${sessionId}: ${message.body?.substring(0, 50) || 'media message'}`);
+        
+        // If we have the revoked message, save it first
+        if (revokedMsg) {
+          await this.storageService.saveMessage(sessionId, revokedMsg);
+        }
+        
+        await this.storageService.markMessageAsDeleted(sessionId, message.id._serialized, 'everyone');
+      } catch (error) {
+        this.logger.error(`Error handling message_revoke_everyone: ${error.message}`);
+      }
+    });
+
+    client.on('message_edit', async (message, newBody, prevBody) => {
+      try {
+        this.logger.log(`✏️ Message edited in session ${sessionId}: ${message.body?.substring(0, 50) || 'media message'}`);
+        await this.storageService.updateMessageEdition(sessionId, message, String(newBody), String(prevBody));
+      } catch (error) {
+        this.logger.error(`Error handling message_edit: ${error.message}`);
+      }
+    });
+
+    client.on('local_session_saved', async () => {
+      this.logger.log(`💾 Session ${sessionId} data saved to local storage`);
+    });
+
+    client.on('remote_session_saved', async () => {
+      this.logger.log(`💾 Session ${sessionId} data saved to MongoDB`);
+    });
+
+    client.on('loading_screen', (percent, message) => {
+      this.logger.log(`📱 Session ${sessionId} loading: ${percent}% - ${message}`);
+    });
+  }
   
   /**
    * Create a new WhatsApp session
    */
   async createSession(sessionId: string) {
     try {
+      console.log('createSession or restore session', sessionId);
       // Check if session already exists
       if (this.sessions.has(sessionId)) {
         this.logger.warn(`Session ${sessionId} already exists`);
@@ -148,10 +268,9 @@ export class WhatsappWebService implements OnModuleInit {
       };
 
       const client = new Client({
-        authStrategy: new RemoteAuth({
-          store: this.store,
+        authStrategy: new LocalAuth({
           clientId: sessionId,
-          backupSyncIntervalMs: 1000 * 60 * 5, // 5 minutes
+          dataPath: this.sessionPath,
         }),
         puppeteer: {
           ...defaultPuppeteerOptions,
@@ -162,80 +281,8 @@ export class WhatsappWebService implements OnModuleInit {
         },
       });
 
-      // Event handlers
-      client.on('qr', async (qr) => {
-        this.logger.log(`📱 QR received for session ${sessionId}`);
-        qrcode.generate(qr, { small: true, width: 100, height: 100 });
-        
-        await this.storeSessionMetadata(sessionId, { 
-          status: 'qr_generated', 
-          lastSeen: new Date() 
-        });
-        
-        this.emitQrEvent(sessionId, qr);
-      });
-
-      client.on('ready', async () => {
-        this.logger.log(`✅ Session ${sessionId} is ready!`);
-        const session = this.sessions.get(sessionId);
-        if (session) {
-          session.isReady = true;
-        }
-        await this.storeSessionMetadata(sessionId, { 
-          status: 'ready', 
-          lastSeen: new Date() 
-        });
-        
-        this.emitReadyEvent(sessionId);
-      });
-
-      client.on('authenticated', async () => {
-        this.logger.log(`🔐 Session ${sessionId} authenticated`);
-        await this.storeSessionMetadata(sessionId, { 
-          status: 'authenticated', 
-          lastSeen: new Date() 
-        });
-      })
-      client.on('auth_failure', async (error) => {
-        this.logger.error(`❌ Session ${sessionId} authentication failed:`, error);
-        await this.storeSessionMetadata(sessionId, { 
-          status: 'auth_failure', 
-          lastSeen: new Date() 
-        });
-        this.emitAuthFailureEvent(sessionId, error);
-      });
-      
-      client.on('message_create', (message) => {
-        this.logger.log(`📤 Message received in session ${sessionId}: ${message.body || 'media message'}`);
-      });
-
-      client.on('disconnected', async (reason) => {
-        this.logger.warn(`⚠️ Session ${sessionId} disconnected: ${reason}`);
-        const session = this.sessions.get(sessionId);
-        if (session) {
-          session.isReady = false;
-        }
-        
-        await this.storeSessionMetadata(sessionId, { 
-          status: 'disconnected', 
-          lastSeen: new Date() 
-        });
-        
-        // Auto-reconnect after 5 seconds
-        setTimeout(async () => {
-          this.logger.log(`🔄 Attempting to reconnect session ${sessionId}`);
-          this.sessions.delete(sessionId);
-          await this.createSession(sessionId);
-        }, 5000);
-      });
-
-      client.on('remote_session_saved', async () => {
-        this.logger.log(`💾 Session ${sessionId} data saved to MongoDB`);
-      });
-
-      client.on('loading_screen', (percent, message) => {
-        this.logger.log(`📱 Session ${sessionId} loading: ${percent}% - ${message}`);
-      });
+      // Set up event handlers
+      this.setupClientListeners(client, sessionId);
 
       // Initialize client
       await client.initialize();
@@ -274,7 +321,7 @@ export class WhatsappWebService implements OnModuleInit {
         this.sessions.delete(sessionId);
         
         // Remove from MongoDB using the model
-        await this.whatsAppSessionModel.deleteMany({ id: sessionId });
+        await this.whatsAppSessionModel.deleteMany({ sessionId: sessionId });
         
         this.logger.log(`🧹 Session ${sessionId} destroyed and removed from MongoDB`);
         return { success: true, message: 'Session destroyed successfully' };
@@ -357,7 +404,7 @@ export class WhatsappWebService implements OnModuleInit {
     try {
       const sessions = await this.whatsAppSessionModel.find({}).exec();
       return sessions.map(session => ({
-        sessionId: session.id,
+        sessionId: session.sessionId,
         status: session.status,
         lastSeen: session.lastSeen,
         updatedAt: session.updatedAt,
@@ -375,6 +422,280 @@ export class WhatsappWebService implements OnModuleInit {
   getClient(sessionId: string): Client | null {
     const session = this.sessions.get(sessionId);
     return session ? session.client : null;
+  }
+
+  /**
+   * Get chats for a session and save them to database
+   */
+  async getChats(sessionId: string) {
+    try {
+      const session = this.sessions.get(sessionId);
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
+
+      if (!session.isReady) {
+        throw new Error(`Session ${sessionId} is not ready yet`);
+      }
+
+      const chats = await session.client.getChats();
+      
+      this.logger.log(`📋 Retrieved ${chats.length} chats from session ${sessionId}`);
+      
+      // Save chats to database using storage service
+      try {
+        await this.storageService.saveChats(sessionId, chats);
+        this.logger.log(`💾 Saved ${chats.length} chats to database for session ${sessionId}`);
+      } catch (error) {
+        this.logger.error(`Error saving chats to database: ${error.message}`);
+      }
+      
+      return chats.map(chat => ({
+        id: chat.id._serialized,
+        name: chat.name,
+        isGroup: chat.isGroup,
+        unreadCount: chat.unreadCount,
+        timestamp: chat.timestamp,
+        archive: chat.archived,
+        pinned: chat.pinned,
+      }));
+    } catch (error) {
+      this.logger.error(`Error getting chats from session ${sessionId}:`, error);
+      throw new Error(`Failed to get chats: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get messages from a specific chat
+   * Stores messages in database to avoid duplicates, then returns stored messages
+   */
+  async getChatMessages(sessionId: string, chatId: string, limit?: number) {
+    try {
+      const session = this.sessions.get(sessionId);
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
+
+      if (!session.isReady) {
+        throw new Error(`Session ${sessionId} is not ready yet`);
+      }
+
+      // Fetch messages from WhatsApp
+      const chat = await session.client.getChatById(chatId);
+      const messages = await chat.fetchMessages({ limit: limit || 50 });
+      
+      this.logger.log(`📨 Retrieved ${messages.length} messages from chat ${chatId} in session ${sessionId}`);
+      
+      // Store messages in database (batch operation to avoid duplicates)
+      try {
+        // Save messages with proper chatId
+        for (const message of messages) {
+          await this.storageService.saveMessage(sessionId, message, chatId);
+        }
+        this.logger.log(`💾 Saved ${messages.length} messages to database for chat ${chatId}`);
+      } catch (error) {
+        this.logger.error(`Error saving messages to database: ${error.message}`);
+        // Continue even if save fails, return the fetched messages
+      }
+      
+      // Fetch stored messages from database
+      const storedMessages = await this.getStoredMessages(sessionId, chatId, { 
+        limit: limit || 50 
+      });
+      
+      this.logger.log(`📥 Returning ${storedMessages.length} stored messages from database`);
+      
+      return storedMessages.map(msg => ({
+        id: msg.messageId,
+        body: msg.body,
+        from: msg.from,
+        to: msg.to,
+        fromMe: msg.fromMe,
+        timestamp: msg.timestamp,
+        hasMedia: msg.hasMedia,
+        mediaType: msg.mediaType,
+        hasQuotedMsg: msg.hasQuotedMsg,
+        isForwarded: msg.isForwarded,
+        isStarred: msg.isStarred,
+        isDeleted: msg.isDeleted,
+      }));
+    } catch (error) {
+      this.logger.error(`Error getting messages from chat ${chatId} in session ${sessionId}:`, error);
+      throw new Error(`Failed to get messages: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get messages from database
+   */
+  async getStoredMessages(sessionId: string, chatId?: string, options?: {
+    includeDeleted?: boolean;
+    limit?: number;
+    skip?: number;
+    startTimestamp?: number;
+    endTimestamp?: number;
+  }) {
+    try {
+      const query: any = { sessionId };
+      
+      if (chatId) {
+        query.chatId = chatId;
+      }
+      
+      if (!options?.includeDeleted) {
+        query.isDeleted = false;
+      }
+      
+      if (options?.startTimestamp) {
+        query.timestamp = { $gte: options.startTimestamp };
+      }
+      
+      if (options?.endTimestamp) {
+        if (!query.timestamp) {
+          query.timestamp = {};
+        }
+        query.timestamp.$lte = options.endTimestamp;
+      }
+      
+      const messages = await this.whatsAppMessageModel
+        .find(query)
+        .sort({ timestamp: -1 })
+        .limit(options?.limit || 50)
+        .skip(options?.skip || 0)
+        .exec();
+      
+      return messages.map(msg => ({
+        messageId: msg.messageId,
+        chatId: msg.chatId,
+        body: msg.body,
+        type: msg.type,
+        from: msg.from,
+        to: msg.to,
+        author: msg.author,
+        fromMe: msg.fromMe,
+        timestamp: msg.timestamp,
+        isDeleted: msg.isDeleted,
+        deletedAt: msg.deletedAt,
+        deletedBy: msg.deletedBy,
+        edition: msg.edition,
+        hasMedia: msg.hasMedia,
+        mediaType: msg.mediaType,
+        hasQuotedMsg: msg.hasQuotedMsg,
+        isForwarded: msg.isForwarded,
+        isStarred: msg.isStarred,
+      }));
+    } catch (error) {
+      this.logger.error(`Error getting stored messages: ${error.message}`);
+      throw new Error(`Failed to get stored messages: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get deleted messages
+   */
+  async getDeletedMessages(sessionId: string, chatId?: string, limit?: number) {
+    try {
+      const query: any = { sessionId, isDeleted: true };
+      
+      if (chatId) {
+        query.chatId = chatId;
+      }
+      
+      const messages = await this.whatsAppMessageModel
+        .find(query)
+        .sort({ deletedAt: -1 })
+        .limit(limit || 50)
+        .exec();
+      
+      return messages;
+    } catch (error) {
+      this.logger.error(`Error getting deleted messages: ${error.message}`);
+      throw new Error(`Failed to get deleted messages: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get message by ID
+   */
+  async getStoredMessageById(sessionId: string, messageId: string) {
+    try {
+      const message = await this.whatsAppMessageModel.findOne({ 
+        sessionId, 
+        messageId 
+      }).exec();
+      
+      if (!message) {
+        throw new Error('Message not found');
+      }
+      
+      return {
+        messageId: message.messageId,
+        chatId: message.chatId,
+        body: message.body,
+        type: message.type,
+        from: message.from,
+        to: message.to,
+        author: message.author,
+        fromMe: message.fromMe,
+        timestamp: message.timestamp,
+        isDeleted: message.isDeleted,
+        deletedAt: message.deletedAt,
+        deletedBy: message.deletedBy,
+        edition: message.edition,
+        hasMedia: message.hasMedia,
+        mediaType: message.mediaType,
+        editionHistory: message.edition,
+        rawData: message.rawData,
+      };
+    } catch (error) {
+      this.logger.error(`Error getting stored message: ${error.message}`);
+      throw new Error(`Failed to get message: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get message edit history
+   */
+  async getMessageEditHistory(sessionId: string, messageId: string) {
+    try {
+      const message = await this.whatsAppMessageModel.findOne({ 
+        sessionId, 
+        messageId 
+      }).exec();
+      
+      if (!message) {
+        throw new Error('Message not found');
+      }
+      
+      return {
+        messageId: message.messageId,
+        currentBody: message.body,
+        editionHistory: message.edition,
+        editCount: message.edition.length,
+      };
+    } catch (error) {
+      this.logger.error(`Error getting message edit history: ${error.message}`);
+      throw new Error(`Failed to get edit history: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get stored chats from database
+   */
+  async getStoredChats(sessionId: string, options?: {
+    archived?: boolean;
+    isGroup?: boolean;
+    limit?: number;
+    skip?: number;
+  }) {
+    return this.storageService.getStoredChats(sessionId, options);
+  }
+
+  /**
+   * Get a specific stored chat from database
+   */
+  async getStoredChat(sessionId: string, chatId: string) {
+    return this.storageService.getStoredChat(sessionId, chatId);
   }
 
   // Event emitter methods (you can implement with EventEmitter2 or @nestjs/event-emitter)
