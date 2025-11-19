@@ -2,6 +2,7 @@ import { Injectable, ConflictException, NotFoundException } from '@nestjs/common
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CallerDevice, CallerDeviceDocument } from '../schemas/caller-device.schema';
+import { Project, ProjectDocument } from '../schemas/project.schema';
 import { CreateCallerDeviceDto } from '../dto/create-caller-device.dto';
 import { UpdateCallerDeviceDto } from '../dto/update-caller-device.dto';
 import { UpdateCallerDeviceProjectDto } from '../dto/update-caller-device-project.dto';
@@ -10,7 +11,8 @@ import { UpdateCallerDeviceProjectDto } from '../dto/update-caller-device-projec
 export class CallerDevicesService {
   constructor(
     @InjectModel(CallerDevice.name) private callerDeviceModel: Model<CallerDeviceDocument>,
-  ) {}
+    @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
+  ) { }
 
   async createCallerDevice(createCallerDeviceDto: CreateCallerDeviceDto): Promise<CallerDevice> {
     try {
@@ -25,17 +27,17 @@ export class CallerDevicesService {
   }
 
   async findAllCallerDevices(): Promise<CallerDevice[]> {
-    return this.callerDeviceModel.find({ 
-      $or: [{ deleted: false }, { deleted: { $exists: false } }] 
+    return this.callerDeviceModel.find({
+      $or: [{ deleted: false }, { deleted: { $exists: false } }]
     }).exec();
   }
 
   async findCallerDeviceById(id: string): Promise<CallerDevice> {
-    const callerDevice = await this.callerDeviceModel.findOne({ 
-      _id: id, 
-      $or: [{ deleted: false }, { deleted: { $exists: false } }] 
+    const callerDevice = await this.callerDeviceModel.findOne({
+      _id: id,
+      $or: [{ deleted: false }, { deleted: { $exists: false } }]
     }).exec();
-    
+
     if (!callerDevice) {
       throw new NotFoundException('Caller device not found');
     }
@@ -43,11 +45,11 @@ export class CallerDevicesService {
   }
 
   async findCallerDeviceByImei(imei: string): Promise<CallerDevice> {
-    const callerDevice = await this.callerDeviceModel.findOne({ 
-      imei, 
-      $or: [{ deleted: false }, { deleted: { $exists: false } }] 
+    const callerDevice = await this.callerDeviceModel.findOne({
+      imei,
+      $or: [{ deleted: false }, { deleted: { $exists: false } }]
     }).exec();
-    
+
     if (!callerDevice) {
       throw new NotFoundException('Caller device not found');
     }
@@ -56,9 +58,9 @@ export class CallerDevicesService {
 
   async updateCallerDevice(id: string, updateCallerDeviceDto: UpdateCallerDeviceDto): Promise<CallerDevice> {
     const callerDevice = await this.callerDeviceModel.findOneAndUpdate(
-      { 
-        _id: id, 
-        $or: [{ deleted: false }, { deleted: { $exists: false } }] 
+      {
+        _id: id,
+        $or: [{ deleted: false }, { deleted: { $exists: false } }]
       },
       updateCallerDeviceDto,
       { new: true }
@@ -72,9 +74,9 @@ export class CallerDevicesService {
 
   async removeCallerDevice(id: string): Promise<void> {
     const callerDevice = await this.callerDeviceModel.findOneAndUpdate(
-      { 
-        _id: id, 
-        $or: [{ deleted: false }, { deleted: { $exists: false } }] 
+      {
+        _id: id,
+        $or: [{ deleted: false }, { deleted: { $exists: false } }]
       },
       { deleted: true },
       { new: true }
@@ -86,62 +88,47 @@ export class CallerDevicesService {
   }
 
   async updateCallerDeviceProject(id: string, updateCallerDeviceProjectDto: UpdateCallerDeviceProjectDto): Promise<CallerDevice> {
-    const { project } = updateCallerDeviceProjectDto;
-    
-    // First, verify the caller device exists
-    const callerDevice = await this.callerDeviceModel.findOne({ 
-      _id: id, 
-      $or: [{ deleted: false }, { deleted: { $exists: false } }] 
+    const { project: newProjectId } = updateCallerDeviceProjectDto;
+
+    const callerDevice = await this.callerDeviceModel.findOne({
+      _id: id,
+      $or: [{ deleted: false }, { deleted: { $exists: false } }]
     }).exec();
-    
+
     if (!callerDevice) {
       throw new NotFoundException('Caller device not found');
     }
 
-    // If assigning to a project, remove this device from any other project's devices array
-    if (project) {
-      // Find all projects that have this device in their devices array
-      const projectsWithThisDevice = await this.callerDeviceModel.aggregate([
-        {
-          $lookup: {
-            from: 'projects',
-            localField: 'project',
-            foreignField: '_id',
-            as: 'projectData'
-          }
-        },
-        {
-          $match: {
-            _id: { $ne: id },
-            project: { $exists: true, $ne: null },
-            'projectData.deleted': { $ne: true }
-          }
-        },
-        {
-          $project: { project: 1 }
-        }
-      ]);
+    const oldProjectId = callerDevice.project;
 
-      // Remove this device from all other projects' devices arrays
-      if (projectsWithThisDevice.length > 0) {
-        const projectIds = projectsWithThisDevice.map(p => p.project);
-        await this.callerDeviceModel.updateMany(
-          { 
-            project: { $in: projectIds },
-            $or: [{ deleted: false }, { deleted: { $exists: false } }]
-          },
-          { $unset: { project: 1 } }
-        ).exec();
-      }
+    // If project hasn't changed, return the device
+    if (oldProjectId?.toString() === newProjectId?.toString()) {
+      return callerDevice;
+    }
+
+    // Remove device from old project's devices array
+    if (oldProjectId) {
+      await this.projectModel.updateOne(
+        { _id: oldProjectId },
+        { $pull: { devices: id } }
+      ).exec();
+    }
+
+    // Add device to new project's devices array
+    if (newProjectId) {
+      await this.projectModel.updateOne(
+        { _id: newProjectId },
+        { $addToSet: { devices: id } }
+      ).exec();
     }
 
     // Update the caller device's project assignment
     const updatedCallerDevice = await this.callerDeviceModel.findOneAndUpdate(
-      { 
-        _id: id, 
-        $or: [{ deleted: false }, { deleted: { $exists: false } }] 
+      {
+        _id: id,
+        $or: [{ deleted: false }, { deleted: { $exists: false } }]
       },
-      { project: project || null },
+      { project: newProjectId || null },
       { new: true }
     ).exec();
 

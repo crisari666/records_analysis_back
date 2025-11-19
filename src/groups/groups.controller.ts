@@ -23,6 +23,11 @@ export class GroupsController {
     return this.groupsService.findGroupById(id);
   }
 
+  @Get(':id/project')
+  getProjectByGroupId(@Param('id') id: string) {
+    return this.groupsService.getProjectByGroupId(id);
+  }
+
   @Patch(':id')
   updateGroup(@Param('id') id: string, @Body() dto: UpdateGroupDto) {
     return this.groupsService.updateGroup(id, dto);
