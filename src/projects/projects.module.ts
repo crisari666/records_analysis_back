@@ -6,6 +6,7 @@ import { Project, ProjectSchema } from '../schemas/project.schema';
 import { CallerDevice, CallerDeviceSchema } from '../schemas/caller-device.schema';
 import { JwtMiddleware } from '../auth/jwt.middleware';
 import { JwtService } from '@nestjs/jwt';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { JwtService } from '@nestjs/jwt';
       { name: Project.name, schema: ProjectSchema },
       { name: CallerDevice.name, schema: CallerDeviceSchema }
     ]),
+    UsersModule,
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService, JwtService],
@@ -28,6 +30,7 @@ export class ProjectsModule implements NestModule {
         { path: 'projects', method: RequestMethod.POST },
         { path: 'projects/:id', method: RequestMethod.PATCH },
         { path: 'projects/:id/devices', method: RequestMethod.PATCH },
+        { path: 'projects/:id/users', method: RequestMethod.PATCH },
         { path: 'projects/:id', method: RequestMethod.DELETE },
       );
   }

@@ -31,10 +31,14 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Default role to 'root' if not set
+    const userRole = user.role || 'root';
+
     const payload = { 
       sub: user._id, 
       username: user.user, 
-      email: user.email 
+      email: user.email,
+      role: userRole
     };
 
     const jwtConfig = this.configService.get('jwt');
@@ -52,6 +56,7 @@ export class AuthService {
         lastName: user.lastName,
         user: user.user,
         email: user.email,
+        role: userRole,
       },
     };
   }

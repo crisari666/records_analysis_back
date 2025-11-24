@@ -6,12 +6,15 @@ import { CallerDevice, CallerDeviceDocument } from '../schemas/caller-device.sch
 import { CreateProjectDto } from '../dto/create-project.dto';
 import { UpdateProjectDto } from '../dto/update-project.dto';
 import { UpdateProjectDevicesDto } from '../dto/update-project-devices.dto';
+import { UpdateProjectUsersDto } from '../dto/update-project-users.dto';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class ProjectsService {
   constructor(
     @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
     @InjectModel(CallerDevice.name) private callerDeviceModel: Model<CallerDeviceDocument>,
+    private usersService: UsersService,
   ) {}
 
   async createProject(createProjectDto: CreateProjectDto): Promise<Project> {
@@ -19,10 +22,23 @@ export class ProjectsService {
     return await project.save();
   }
 
-  async findAllProjects(): Promise<Project[]> {
-    return this.projectModel.find({ 
+  async findAllProjects(userId?: string): Promise<Project[]> {
+    const query: any = { 
       $or: [{ deleted: false }, { deleted: { $exists: false } }] 
-    }).exec();
+    };
+
+    // If userId is provided, check user role to filter projects
+    if (userId) {
+      const user = await this.usersService.findUserById(userId);
+      
+      // If user is root, return all projects (no additional filter)
+      // If user is admin or user, return only projects where user is in the users array
+      if (user.role !== 'root') {
+        query.users = userId;
+      }
+    }
+
+    return this.projectModel.find(query).exec();
   }
 
   async findProjectById(id: string): Promise<Project> {
@@ -128,5 +144,36 @@ export class ProjectsService {
     if (!project) {
       throw new NotFoundException('Project not found');
     }
+  }
+
+  async updateProjectUsers(id: string, updateProjectUsersDto: UpdateProjectUsersDto): Promise<Project> {
+    const { users } = updateProjectUsersDto;
+    
+    // First, verify the project exists
+    const project = await this.projectModel.findOne({ 
+      _id: id, 
+      $or: [{ deleted: false }, { deleted: { $exists: false } }] 
+    }).exec();
+    
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    // Verify all users exist
+    for (const userId of users) {
+      await this.usersService.findUserById(userId);
+    }
+
+    // Update the project with the new users list
+    const updatedProject = await this.projectModel.findOneAndUpdate(
+      { 
+        _id: id, 
+        $or: [{ deleted: false }, { deleted: { $exists: false } }] 
+      },
+      { users },
+      { new: true }
+    ).exec();
+
+    return updatedProject;
   }
 }

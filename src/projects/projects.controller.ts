@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from '../dto/create-project.dto';
 import { UpdateProjectDto } from '../dto/update-project.dto';
 import { UpdateProjectDevicesDto } from '../dto/update-project-devices.dto';
+import { UpdateProjectUsersDto } from '../dto/update-project-users.dto';
 
 @Controller('projects')
 export class ProjectsController {
@@ -14,8 +16,9 @@ export class ProjectsController {
   }
 
   @Get()
-  findAllProjects() {
-    return this.projectsService.findAllProjects();
+  findAllProjects(@Req() req: Request) {
+    const userId = (req.user as any)?._id;
+    return this.projectsService.findAllProjects(userId);
   }
 
   @Get(':id')
@@ -31,6 +34,11 @@ export class ProjectsController {
   @Patch(':id/devices')
   updateProjectDevices(@Param('id') id: string, @Body() updateProjectDevicesDto: UpdateProjectDevicesDto) {
     return this.projectsService.updateProjectDevices(id, updateProjectDevicesDto);
+  }
+
+  @Patch(':id/users')
+  updateProjectUsers(@Param('id') id: string, @Body() updateProjectUsersDto: UpdateProjectUsersDto) {
+    return this.projectsService.updateProjectUsers(id, updateProjectUsersDto);
   }
 
   @Delete(':id')

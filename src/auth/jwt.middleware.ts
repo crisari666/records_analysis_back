@@ -36,6 +36,7 @@ export class JwtMiddleware implements NestMiddleware {
         userId: payload.sub,
         username: payload.username,
         email: payload.email,
+        role: payload.role || 'root',
       };
       
       next();

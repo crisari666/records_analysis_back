@@ -20,6 +20,13 @@ export class User {
   @Prop({ required: true })
   password: string;
 
+  @Prop({ 
+    type: String, 
+    enum: ['root', 'admin', 'user'], 
+    default: 'user' 
+  })
+  role: string;
+
   @Prop({ default: false })
   removed: boolean;
 }

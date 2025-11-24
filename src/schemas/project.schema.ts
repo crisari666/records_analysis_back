@@ -14,6 +14,9 @@ export class Project {
   @Prop({ type: [String], default: [] })
   devices: string[];
 
+  @Prop({ type: [String], default: [] })
+  users: string[];
+
   @Prop({ default: false })
   deleted: boolean;
 }
