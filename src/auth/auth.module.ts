@@ -1,10 +1,11 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer, RequestMethod, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtMiddleware } from './jwt.middleware';
 import { UsersModule } from '../users/users.module';
+import { JwtService } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -26,8 +27,16 @@ import { UsersModule } from '../users/users.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtMiddleware],
+  providers: [AuthService, JwtMiddleware, JwtService],
   exports: [AuthService, JwtMiddleware],
 })
-export class AuthModule {}
+export class AuthModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(JwtMiddleware)
+      .forRoutes(
+        { path: 'auth/me', method: RequestMethod.GET },
+      );
+  }
+}
 

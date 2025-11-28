@@ -22,18 +22,19 @@ export class ProjectsService {
     return await project.save();
   }
 
-  async findAllProjects(userId?: string): Promise<Project[]> {
+  async findAllProjects(userId?: string, role?: string): Promise<Project[]> {
+    
     const query: any = { 
       $or: [{ deleted: false }, { deleted: { $exists: false } }] 
     };
 
     // If userId is provided, check user role to filter projects
     if (userId) {
-      const user = await this.usersService.findUserById(userId);
+      const userRole = role || 'root';
       
       // If user is root, return all projects (no additional filter)
       // If user is admin or user, return only projects where user is in the users array
-      if (user.role !== 'root') {
+      if (userRole !== 'root') {
         query.users = userId;
       }
     }

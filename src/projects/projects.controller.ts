@@ -17,8 +17,10 @@ export class ProjectsController {
 
   @Get()
   findAllProjects(@Req() req: Request) {
-    const userId = (req.user as any)?._id;
-    return this.projectsService.findAllProjects(userId);
+    const user = req['user'] as { userId: string; role: string };
+    const userId = user?.userId;
+    const role = user?.role || 'root';
+    return this.projectsService.findAllProjects(userId, role);
   }
 
   @Get(':id')

