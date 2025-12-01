@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from '../dto/create-group.dto';
 import { UpdateGroupDto } from '../dto/update-group.dto';
@@ -14,13 +15,19 @@ export class GroupsController {
   }
 
   @Get()
-  findAllGroups(@Query('projectId') projectId?: string) {
-    return this.groupsService.findAllGroups(projectId);
+  findAllGroups(@Req() req: Request) {
+    const user = req['user'] as { userId: string; role: string };
+    const userId = user?.userId;
+    const role = user?.role || 'root';
+    return this.groupsService.findAllGroups(userId, role);
   }
 
   @Get(':id')
-  findGroupById(@Param('id') id: string) {
-    return this.groupsService.findGroupById(id);
+  findGroupById(@Param('id') id: string, @Req() req?: Request) {
+    const user = req?.['user'] as { userId: string; role: string } | undefined;
+    const userId = user?.userId;
+    const role = user?.role || 'root';
+    return this.groupsService.findGroupById(id, userId, role);
   }
 
   @Get(':id/project')
