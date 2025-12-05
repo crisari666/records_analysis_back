@@ -1,4 +1,4 @@
-import { Module, NestModule, MiddlewareConsumer, RequestMethod, forwardRef } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
@@ -16,6 +16,7 @@ import { JwtService } from '@nestjs/jwt';
       { name: Project.name, schema: ProjectSchema },
       { name: Group.name, schema: GroupSchema },
     ]),
+    forwardRef(() => AuthModule),
   ],
   controllers: [UsersController],
   providers: [UsersService, JwtService],
@@ -25,12 +26,7 @@ export class UsersModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(JwtMiddleware)
-      .forRoutes(
-        { path: 'users', method: RequestMethod.GET },
-        { path: 'users/:id', method: RequestMethod.GET },
-        { path: 'users/:id', method: RequestMethod.PATCH },
-        { path: 'users/:id', method: RequestMethod.DELETE },
-      );
+      .forRoutes(UsersController);
   }
 }
 

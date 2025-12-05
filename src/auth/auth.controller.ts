@@ -44,4 +44,3 @@ export class AuthController {
     return type === 'Bearer' ? token : undefined;
   }
 }
-
