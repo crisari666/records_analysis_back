@@ -20,6 +20,8 @@ export class AuthController {
   async me(@Req() req: Request) {
     const userFromToken = req['user'] as { userId: string; username: string; email: string; role: string };
     const fullUser = await this.usersService.findUserById(userFromToken.userId);
+
+    console.log(fullUser);
     
     const userRole = fullUser.role || 'root';
     const token = this.extractTokenFromHeader(req);

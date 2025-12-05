@@ -25,4 +25,8 @@ export class CreateUserDto {
   @IsString()
   @IsIn(['root', 'admin', 'user'])
   role?: string;
+
+  @IsOptional()
+  @IsString({ each: true })
+  projects?: string[];
 }

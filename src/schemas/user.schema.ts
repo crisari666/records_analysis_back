@@ -27,6 +27,9 @@ export class User {
   })
   role: string;
 
+  @Prop({ type: [String], default: [] })
+  projects: string[];
+
   @Prop({ default: false })
   removed: boolean;
 }
